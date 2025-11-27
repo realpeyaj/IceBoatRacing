@@ -1,0 +1,15 @@
+# IceBoatRacing Configuration
+# Arenas are saved here automatically.
+
+settings:
+  checkpoint-radius: 6.0
+
+# Arenas data will be saved here automatically.
+# Example structure (Do not edit manually while server is running):
+# arenas:
+#   track1:
+#     type: DEFAULT
+#     laps: 1
+#     lobby: ...
+#     spawns: ...
+arenas: {}

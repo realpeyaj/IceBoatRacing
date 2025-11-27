@@ -1,0 +1,17 @@
+name: IceBoatRacing
+version: 1.0
+main: peyaj.IceBoatRacing
+api-version: 1.21
+author: peyaj
+commands:
+  race:
+    description: Main race command
+    usage: /race <args>
+    permission: race.use
+permissions:
+  race.admin:
+    description: Admin access to setup races
+    default: op
+  race.use:
+    description: Access to join races
+    default: true
