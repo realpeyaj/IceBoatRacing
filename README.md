@@ -17,8 +17,6 @@
     * Run multiple races simultaneously on different tracks (e.g., "FrostyPeaks", "LavaRun").
 * 🏁 **Flexible Race Modes**
     * Supports both **DEFAULT** (Sprint/Point-to-Point) and **LAP** (Looping) modes.
-* 👻 **Ghost Mode**
-    * Advanced collision handling allows boats to pass through each other seamlessly using packet manipulation. **No bumping or crashing into opponents!**
 * ⚡ **Ray-Traced Physics**
     * Uses vector math to detect checkpoints even at extreme speeds (**100km/h+**). No more "skipping" checkpoints due to server lag.
 * 🪄 **Visual Editor**
