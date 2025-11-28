@@ -1,16 +1,15 @@
 package peyaj;
 
-import io.papermc.paper.scoreboard.numbers.NumberFormat;
+import eu.decentsoftware.holograms.api.DHAPI;
+import eu.decentsoftware.holograms.api.holograms.Hologram;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer; // FIXED: Added missing import
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
 import org.bukkit.entity.Boat;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.TextDisplay;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.*;
@@ -65,7 +64,7 @@ public class RaceArena {
 
     // Leaderboard Data
     public final Map<UUID, Long> bestTimes = new HashMap<>();
-    private TextDisplay hologramEntity;
+    // Note: We don't store the Entity anymore, DHAPI handles it by name
 
     private BukkitTask autoStartTask = null;
     private int startCountdown = -1;
@@ -130,25 +129,29 @@ public class RaceArena {
         }
     }
 
-    // --- HOLOGRAMS ---
+    // --- DECENT HOLOGRAMS INTEGRATION ---
     public void updateLeaderboardHologram() {
         if (leaderboardLocation == null) return;
 
-        // Kill old if exists (check nearby to be safe)
-        if (hologramEntity != null && !hologramEntity.isDead()) hologramEntity.remove();
+        String holoName = "race_lb_" + name;
+        Hologram holo = DHAPI.getHologram(holoName);
 
-        for (Entity e : leaderboardLocation.getWorld().getNearbyEntities(leaderboardLocation, 2, 2, 2)) {
-            if (e instanceof TextDisplay td && e.getScoreboardTags().contains("iceboat_holo_" + name)) {
-                e.remove();
-            }
+        // Create if not exists
+        if (holo == null) {
+            holo = DHAPI.createHologram(holoName, leaderboardLocation);
+        } else {
+            // Move to current set location (in case it was changed with wand)
+            DHAPI.moveHologram(holo, leaderboardLocation);
         }
 
+        // Prepare Lines
+        List<String> lines = new ArrayList<>();
+        lines.add("&b&l❄ " + name.toUpperCase() + " LEADERBOARD ❄");
+        lines.add("&7------------------------");
+
+        // Sort Data
         List<Map.Entry<UUID, Long>> sorted = new ArrayList<>(bestTimes.entrySet());
         sorted.sort(Map.Entry.comparingByValue());
-
-        StringBuilder text = new StringBuilder();
-        text.append("§b§l❄ ").append(name.toUpperCase()).append(" LEADERBOARD ❄\n");
-        text.append("§7------------------------\n");
 
         int limit = Math.min(sorted.size(), 10);
         for (int i = 0; i < limit; i++) {
@@ -157,18 +160,15 @@ public class RaceArena {
             OfflinePlayer op = Bukkit.getOfflinePlayer(uuid);
             String pName = (op.getName() != null) ? op.getName() : "Unknown";
 
-            String color = (i == 0) ? "§e" : (i == 1) ? "§f" : (i == 2) ? "§6" : "§7";
-            text.append(color).append(i + 1).append(". §f").append(pName)
-                    .append(" §7- §b").append(Utils.formatTime(time)).append("\n");
+            String color = (i == 0) ? "&e" : (i == 1) ? "&f" : (i == 2) ? "&6" : "&7";
+            lines.add(color + (i + 1) + ". &f" + pName + " &7- &b" + Utils.formatTime(time));
         }
 
-        if (limit == 0) text.append("§7No records yet!\n");
-        text.append("§7------------------------");
+        if (limit == 0) lines.add("&7No records yet!");
+        lines.add("&7------------------------");
 
-        hologramEntity = (TextDisplay) leaderboardLocation.getWorld().spawnEntity(leaderboardLocation, EntityType.TEXT_DISPLAY);
-        hologramEntity.text(LegacyComponentSerializer.legacyAmpersand().deserialize(text.toString()));
-        hologramEntity.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
-        hologramEntity.addScoreboardTag("iceboat_holo_" + name);
+        // Update Lines
+        DHAPI.setHologramLines(holo, lines);
     }
 
     // --- PLAYER MANAGEMENT ---
@@ -317,7 +317,7 @@ public class RaceArena {
         if (state == RaceState.LOBBY) return;
 
         if (state == RaceState.ACTIVE) {
-            List<UUID> ranking = calculateRankings(); // FIXED: Method is now present below
+            List<UUID> ranking = calculateRankings();
             for (UUID uuid : players) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p == null || !p.isOnline()) continue;
@@ -458,27 +458,20 @@ public class RaceArena {
         syncGhostModeForPlayer(p, boat);
     }
 
-    // --- FIXED: Added Missing Method calculateRankings ---
     private List<UUID> calculateRankings() {
         List<UUID> rankList = new ArrayList<>(players);
         rankList.sort((u1, u2) -> {
-            // 1. Finished players first
             boolean f1 = finishOrder.contains(u1);
             boolean f2 = finishOrder.contains(u2);
             if (f1 != f2) return f1 ? -1 : 1;
             if (f1) return Integer.compare(finishOrder.indexOf(u1), finishOrder.indexOf(u2));
 
-            // 2. Lap Count (Higher is better)
-            int l1 = playerLaps.getOrDefault(u1, 1);
-            int l2 = playerLaps.getOrDefault(u2, 1);
+            int l1 = playerLaps.getOrDefault(u1, 1), l2 = playerLaps.getOrDefault(u2, 1);
             if (l1 != l2) return Integer.compare(l2, l1);
 
-            // 3. Checkpoint Index (Higher is better)
-            int c1 = playerCheckpoints.getOrDefault(u1, 0);
-            int c2 = playerCheckpoints.getOrDefault(u2, 0);
+            int c1 = playerCheckpoints.getOrDefault(u1, 0), c2 = playerCheckpoints.getOrDefault(u2, 0);
             if (c1 != c2) return Integer.compare(c2, c1);
 
-            // 4. Distance to Next Objective (Lower is better)
             double d1 = getDistanceToTarget(u1, c1);
             double d2 = getDistanceToTarget(u2, c2);
             return Double.compare(d1, d2);
@@ -486,7 +479,6 @@ public class RaceArena {
         return rankList;
     }
 
-    // --- FIXED: Added Missing Method getDistanceToTarget ---
     private double getDistanceToTarget(UUID uuid, int cpIndex) {
         Player p = Bukkit.getPlayer(uuid);
         if (p == null) return Double.MAX_VALUE;
@@ -495,7 +487,6 @@ public class RaceArena {
         if (cpIndex < checkpoints.size()) {
             target = checkpoints.get(cpIndex);
         } else {
-            // Aiming for finish line
             if (finishCenter != null) target = finishCenter;
             else target = finishPos1;
         }

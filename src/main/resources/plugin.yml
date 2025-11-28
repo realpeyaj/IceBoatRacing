@@ -1,8 +1,10 @@
 name: IceBoatRacing
-version: 1.0
+version: 1.0.4
 main: peyaj.IceBoatRacing
 api-version: 1.21
-author: peyaj
+authors: [peyaj]
+description: Multi-arena Ice Boat Racing plugin with lap support.
+depend: [DecentHolograms]
 commands:
   race:
     description: Main race command
@@ -10,8 +12,8 @@ commands:
     permission: race.use
 permissions:
   race.admin:
-    description: Admin access to setup races
+    description: Admin access to setup arenas and force start/stop
     default: op
   race.use:
-    description: Access to join races
+    description: Access to join and play races
     default: true
