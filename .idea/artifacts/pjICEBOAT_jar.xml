@@ -2,7 +2,7 @@
   <artifact type="jar" name="pjICEBOAT:jar">
     <output-path>$PROJECT_DIR$/../PluginsFinal</output-path>
     <root id="archive" name="pjICEBOAT.jar">
-      <element id="module-output" name="pjICEBOAT" />
+      <element id="module-output" name="IceBoatRacing" />
     </root>
   </artifact>
 </component>

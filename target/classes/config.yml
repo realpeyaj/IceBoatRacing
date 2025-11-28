@@ -1,15 +1,19 @@
 # IceBoatRacing Configuration
-# Arenas are saved here automatically.
 
 settings:
-  checkpoint-radius: 6.0
+  checkpoint-radius: 25.0
+  # Paste your Discord Webhook URL below to enable result posting.
+  # Leave empty "" to disable.
+  discord-webhook-url: ""
 
-# Arenas data will be saved here automatically.
-# Example structure (Do not edit manually while server is running):
-# arenas:
-#   track1:
-#     type: DEFAULT
-#     laps: 1
-#     lobby: ...
-#     spawns: ...
-arenas: {}
+music:
+  enabled: true
+  # The sound key from your resource pack (sounds.json)
+  sound-name: "minecraft:coconutmallmariokartwiiostfourone" # or any music you want
+  # How long is the song in seconds? The plugin will re-play it after this time.
+  loop-duration-seconds: 180
+  volume: 10000.0
+  pitch: 1.0
+
+arenas:
+# Data is saved here automatically

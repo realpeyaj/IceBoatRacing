@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>peyaj</groupId>
-    <artifactId>pjICEBOAT</artifactId>
+    <artifactId>IceBoatRacing</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>pjICEBOAT</name>
+    <name>IceBoatRacing</name>
 
     <properties>
         <java.version>21</java.version>
