@@ -42,6 +42,7 @@ public class RaceCommand implements CommandExecutor, TabCompleter {
             case "cp", "checkpoint" -> handleCheckpoint(player);
             case "start" -> handleStart(player, args);
             case "stop" -> handleStop(player, args);
+            case "reload" -> handleReload(player);
             default -> sendHelp(player);
         }
         return true;
@@ -185,6 +186,11 @@ public class RaceCommand implements CommandExecutor, TabCompleter {
                 arena.setMainLobby(player.getLocation());
                 msg(player, "&aMain Lobby set.");
             }
+            // New Leaderboard Command (Backup for Wand)
+            case "setleaderboard" -> {
+                arena.setLeaderboardLocation(player.getLocation());
+                msg(player, "&aLeaderboard Hologram location set.");
+            }
         }
         plugin.saveArenas();
     }
@@ -224,6 +230,12 @@ public class RaceCommand implements CommandExecutor, TabCompleter {
             arena.stopRace();
             player.sendMessage(Component.text("Stopped " + arena.getName(), NamedTextColor.RED));
         }
+    }
+
+    private void handleReload(Player player) {
+        if (!player.hasPermission("race.admin")) { msg(player, "&cNo permission."); return; }
+        plugin.reload();
+        msg(player, "&aConfiguration reloaded.");
     }
 
     private void handleCheckpoint(Player player) {
@@ -269,6 +281,7 @@ public class RaceCommand implements CommandExecutor, TabCompleter {
                 cmds.add("admin");
                 cmds.add("start");
                 cmds.add("stop");
+                cmds.add("reload");
             }
             return filter(cmds, args[0]);
         }
@@ -278,7 +291,7 @@ public class RaceCommand implements CommandExecutor, TabCompleter {
                 return filter(new ArrayList<>(plugin.getArenas().keySet()), args[1]);
             }
             if (args[0].equalsIgnoreCase("admin")) {
-                return filter(Arrays.asList("create", "delete", "wand", "edit", "stopedit", "visualize", "setlaps", "setradius", "addspawn", "addcp", "setfinish", "setlobby", "setmainlobby", "setminplayers", "setautostart"), args[1]);
+                return filter(Arrays.asList("create", "delete", "wand", "edit", "stopedit", "visualize", "setlaps", "setradius", "addspawn", "addcp", "setfinish", "setlobby", "setmainlobby", "setminplayers", "setautostart", "setleaderboard"), args[1]);
             }
         }
 

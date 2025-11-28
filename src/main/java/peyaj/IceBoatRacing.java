@@ -40,7 +40,8 @@ public class IceBoatRacing extends JavaPlugin {
         FINISH_1("Finish Pos 1", NamedTextColor.AQUA),
         FINISH_2("Finish Pos 2", NamedTextColor.AQUA),
         LOBBY("Pre-Lobby", NamedTextColor.GOLD),
-        MAIN_LOBBY("Main Lobby", NamedTextColor.YELLOW);
+        MAIN_LOBBY("Main Lobby", NamedTextColor.YELLOW),
+        LEADERBOARD("Leaderboard Holo", NamedTextColor.LIGHT_PURPLE);
 
         public final String name;
         public final NamedTextColor color;
@@ -95,6 +96,14 @@ public class IceBoatRacing extends JavaPlugin {
             arena.stopRace();
         }
         saveArenas();
+    }
+
+    public void reload() {
+        reloadConfig();
+        loadConfigSettings();
+        // We don't fully reload arenas to avoid kicking players mid-race,
+        // but we could if needed. For now, just settings.
+        getLogger().info("Configuration reloaded.");
     }
 
     public RaceArena getArena(String name) {
@@ -154,8 +163,16 @@ public class IceBoatRacing extends JavaPlugin {
             getConfig().set(path + ".mainlobby", arena.getMainLobby());
             getConfig().set(path + ".finish1", arena.getFinishPos1());
             getConfig().set(path + ".finish2", arena.getFinishPos2());
+            getConfig().set(path + ".leaderboard", arena.getLeaderboardLocation());
             getConfig().set(path + ".spawns", arena.getSpawns());
             getConfig().set(path + ".checkpoints", arena.getCheckpoints());
+
+            // Save Best Times
+            if (!arena.bestTimes.isEmpty()) {
+                for (Map.Entry<UUID, Long> entry : arena.bestTimes.entrySet()) {
+                    getConfig().set(path + ".best_times." + entry.getKey().toString(), entry.getValue());
+                }
+            }
         }
         saveConfig();
     }
@@ -176,6 +193,9 @@ public class IceBoatRacing extends JavaPlugin {
         if (section == null) return;
 
         for (String key : section.getKeys(false)) {
+            // If arena already loaded, skip to avoid overwrite active data
+            if (arenas.containsKey(key.toLowerCase())) continue;
+
             String path = "arenas." + key;
             RaceArena arena = new RaceArena(key, this);
 
@@ -191,6 +211,7 @@ public class IceBoatRacing extends JavaPlugin {
 
             arena.setLobby(getConfig().getLocation(path + ".lobby"));
             arena.setMainLobby(getConfig().getLocation(path + ".mainlobby"));
+            arena.setLeaderboardLocation(getConfig().getLocation(path + ".leaderboard"));
 
             arena.setFinishLine(
                     getConfig().getLocation(path + ".finish1"),
@@ -203,7 +224,21 @@ public class IceBoatRacing extends JavaPlugin {
             List<?> loadedCheckpoints = getConfig().getList(path + ".checkpoints");
             if (loadedCheckpoints != null) for (Object obj : loadedCheckpoints) if (obj instanceof Location) arena.addCheckpoint((Location) obj);
 
+            // Load Best Times
+            ConfigurationSection timeSection = getConfig().getConfigurationSection(path + ".best_times");
+            if (timeSection != null) {
+                for (String uuidStr : timeSection.getKeys(false)) {
+                    try {
+                        UUID uuid = UUID.fromString(uuidStr);
+                        long time = timeSection.getLong(uuidStr);
+                        arena.bestTimes.put(uuid, time);
+                    } catch (Exception ignored) {}
+                }
+            }
+
             arenas.put(key.toLowerCase(), arena);
+            // Update hologram on start
+            arena.updateLeaderboardHologram();
             getLogger().info("Loaded arena: " + key);
         }
     }

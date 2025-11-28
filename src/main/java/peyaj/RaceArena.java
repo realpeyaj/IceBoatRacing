@@ -3,12 +3,14 @@ package peyaj;
 import io.papermc.paper.scoreboard.numbers.NumberFormat;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer; // FIXED: Added missing import
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
 import org.bukkit.entity.Boat;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.*;
@@ -40,6 +42,7 @@ public class RaceArena {
     private final List<Location> checkpoints = new ArrayList<>();
     private Location lobby;
     private Location mainLobby;
+    private Location leaderboardLocation;
 
     private Location finishPos1, finishPos2;
     private BoundingBox finishBox;
@@ -59,6 +62,10 @@ public class RaceArena {
     private final List<UUID> finishOrder = new ArrayList<>();
     private final Map<UUID, Location> lastLocations = new HashMap<>();
     private final List<Location> glassBlocks = new ArrayList<>();
+
+    // Leaderboard Data
+    public final Map<UUID, Long> bestTimes = new HashMap<>();
+    private TextDisplay hologramEntity;
 
     private BukkitTask autoStartTask = null;
     private int startCountdown = -1;
@@ -85,6 +92,12 @@ public class RaceArena {
     public Location getFinishPos2() { return finishPos2; }
     public BoundingBox getFinishBox() { return finishBox; }
     public RaceState getState() { return state; }
+
+    public Location getLeaderboardLocation() { return leaderboardLocation; }
+    public void setLeaderboardLocation(Location loc) {
+        this.leaderboardLocation = loc;
+        updateLeaderboardHologram(); // Refresh instantly
+    }
 
     public void addSpawn(Location loc) { spawns.add(loc); }
     public void addCheckpoint(Location loc) { checkpoints.add(loc); }
@@ -115,6 +128,47 @@ public class RaceArena {
             finishBox = BoundingBox.of(finishPos1, finishPos2);
             finishCenter = finishBox.getCenter().toLocation(finishPos1.getWorld());
         }
+    }
+
+    // --- HOLOGRAMS ---
+    public void updateLeaderboardHologram() {
+        if (leaderboardLocation == null) return;
+
+        // Kill old if exists (check nearby to be safe)
+        if (hologramEntity != null && !hologramEntity.isDead()) hologramEntity.remove();
+
+        for (Entity e : leaderboardLocation.getWorld().getNearbyEntities(leaderboardLocation, 2, 2, 2)) {
+            if (e instanceof TextDisplay td && e.getScoreboardTags().contains("iceboat_holo_" + name)) {
+                e.remove();
+            }
+        }
+
+        List<Map.Entry<UUID, Long>> sorted = new ArrayList<>(bestTimes.entrySet());
+        sorted.sort(Map.Entry.comparingByValue());
+
+        StringBuilder text = new StringBuilder();
+        text.append("§b§l❄ ").append(name.toUpperCase()).append(" LEADERBOARD ❄\n");
+        text.append("§7------------------------\n");
+
+        int limit = Math.min(sorted.size(), 10);
+        for (int i = 0; i < limit; i++) {
+            UUID uuid = sorted.get(i).getKey();
+            long time = sorted.get(i).getValue();
+            OfflinePlayer op = Bukkit.getOfflinePlayer(uuid);
+            String pName = (op.getName() != null) ? op.getName() : "Unknown";
+
+            String color = (i == 0) ? "§e" : (i == 1) ? "§f" : (i == 2) ? "§6" : "§7";
+            text.append(color).append(i + 1).append(". §f").append(pName)
+                    .append(" §7- §b").append(Utils.formatTime(time)).append("\n");
+        }
+
+        if (limit == 0) text.append("§7No records yet!\n");
+        text.append("§7------------------------");
+
+        hologramEntity = (TextDisplay) leaderboardLocation.getWorld().spawnEntity(leaderboardLocation, EntityType.TEXT_DISPLAY);
+        hologramEntity.text(LegacyComponentSerializer.legacyAmpersand().deserialize(text.toString()));
+        hologramEntity.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
+        hologramEntity.addScoreboardTag("iceboat_holo_" + name);
     }
 
     // --- PLAYER MANAGEMENT ---
@@ -188,17 +242,15 @@ public class RaceArena {
             setupRaceScoreboard(p);
         }
 
-        // Collision & Visibility Sync
         syncGhostMode();
 
-        // Countdown
         new BukkitRunnable() {
             int count = 5;
             @Override
             public void run() {
                 if (state != RaceState.STARTING) { removeCages(); this.cancel(); return; }
 
-                if (count == 3) startMusic(); // Music Trigger
+                if (count == 3) startMusic();
 
                 if (count > 0) {
                     Title title = Title.title(Component.text(count, NamedTextColor.RED), Component.empty());
@@ -235,7 +287,6 @@ public class RaceArena {
         cancelAutoStart();
         stopAllMusic();
 
-        // Send Discord Webhook
         if (!finishOrder.isEmpty() && !plugin.discordWebhookUrl.isEmpty()) {
             sendDiscordResults();
         }
@@ -259,13 +310,14 @@ public class RaceArena {
             }
         }
         players.clear();
+        updateLeaderboardHologram(); // Update hologram at end
     }
 
     public void tick() {
         if (state == RaceState.LOBBY) return;
 
         if (state == RaceState.ACTIVE) {
-            List<UUID> ranking = calculateRankings();
+            List<UUID> ranking = calculateRankings(); // FIXED: Method is now present below
             for (UUID uuid : players) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p == null || !p.isOnline()) continue;
@@ -276,7 +328,6 @@ public class RaceArena {
                     double speedKmH = (lastLoc.getWorld() == currentLoc.getWorld()) ? currentLoc.distance(lastLoc) * 72.0 : 0;
                     lastLocations.put(uuid, currentLoc);
 
-                    // Physics
                     int safety = 0;
                     boolean keepChecking = true;
                     while(keepChecking && safety < 3) {
@@ -366,6 +417,11 @@ public class RaceArena {
         String timeStr = Utils.formatTime(timeMs);
         finishTimes.put(p.getUniqueId(), timeStr);
 
+        if (!bestTimes.containsKey(p.getUniqueId()) || timeMs < bestTimes.get(p.getUniqueId())) {
+            bestTimes.put(p.getUniqueId(), timeMs);
+            p.sendMessage(Component.text("New Personal Best: " + timeStr, NamedTextColor.AQUA));
+        }
+
         p.showTitle(Title.title(Component.text("FINISHED!", NamedTextColor.GOLD), Component.text("Time: " + timeStr, NamedTextColor.YELLOW)));
         p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LARGE_BLAST, 1f, 1f);
@@ -399,8 +455,54 @@ public class RaceArena {
         boat.setInvulnerable(true);
         playerBoats.put(p.getUniqueId(), boat);
 
-        // Update ghost mode for new boat
         syncGhostModeForPlayer(p, boat);
+    }
+
+    // --- FIXED: Added Missing Method calculateRankings ---
+    private List<UUID> calculateRankings() {
+        List<UUID> rankList = new ArrayList<>(players);
+        rankList.sort((u1, u2) -> {
+            // 1. Finished players first
+            boolean f1 = finishOrder.contains(u1);
+            boolean f2 = finishOrder.contains(u2);
+            if (f1 != f2) return f1 ? -1 : 1;
+            if (f1) return Integer.compare(finishOrder.indexOf(u1), finishOrder.indexOf(u2));
+
+            // 2. Lap Count (Higher is better)
+            int l1 = playerLaps.getOrDefault(u1, 1);
+            int l2 = playerLaps.getOrDefault(u2, 1);
+            if (l1 != l2) return Integer.compare(l2, l1);
+
+            // 3. Checkpoint Index (Higher is better)
+            int c1 = playerCheckpoints.getOrDefault(u1, 0);
+            int c2 = playerCheckpoints.getOrDefault(u2, 0);
+            if (c1 != c2) return Integer.compare(c2, c1);
+
+            // 4. Distance to Next Objective (Lower is better)
+            double d1 = getDistanceToTarget(u1, c1);
+            double d2 = getDistanceToTarget(u2, c2);
+            return Double.compare(d1, d2);
+        });
+        return rankList;
+    }
+
+    // --- FIXED: Added Missing Method getDistanceToTarget ---
+    private double getDistanceToTarget(UUID uuid, int cpIndex) {
+        Player p = Bukkit.getPlayer(uuid);
+        if (p == null) return Double.MAX_VALUE;
+
+        Location target;
+        if (cpIndex < checkpoints.size()) {
+            target = checkpoints.get(cpIndex);
+        } else {
+            // Aiming for finish line
+            if (finishCenter != null) target = finishCenter;
+            else target = finishPos1;
+        }
+
+        if (target == null || !p.getWorld().equals(target.getWorld())) return Double.MAX_VALUE;
+
+        return p.getLocation().distanceSquared(target);
     }
 
     // --- AUTO START ---
@@ -449,8 +551,6 @@ public class RaceArena {
         }
     }
 
-    // --- SCOREBOARDS ---
-
     private void updateLobbyScoreboard() {
         if (state != RaceState.LOBBY) return;
         for (UUID uuid : players) {
@@ -470,13 +570,13 @@ public class RaceArena {
         statusTeam.addEntry("§7");
         statusTeam.suffix(Component.text(statusTxt));
 
-        o.getScore("§7------------------").setScore(6);
+        o.getScore("§7----------------").setScore(6);
         o.getScore("§eArena:").setScore(5);
         o.getScore("  §f" + name).setScore(4);
         o.getScore(" ").setScore(3);
         o.getScore("§aPlayers: §f" + players.size() + "/" + minPlayers).setScore(2);
         o.getScore("§7").setScore(1);
-        o.getScore("§7------------------").setScore(0);
+        o.getScore("§7---------------- ").setScore(0);
         p.setScoreboard(b);
     }
 
@@ -489,7 +589,7 @@ public class RaceArena {
         ghost.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
 
         Utils.createTeam(b, "stats", "§fTime: 00:00");
-        o.getScore("§7--------------------------------").setScore(15);
+        o.getScore("§7----------------").setScore(15);
         o.getScore("§eStats:").setScore(14);
         o.getScore("§f").setScore(13);
         o.getScore(" ").setScore(12);
@@ -531,52 +631,7 @@ public class RaceArena {
         }
     }
 
-    // --- MISC HELPERS ---
-
-    private void highlightNextTarget(Player p, UUID uuid) {
-        int currentCpIndex = playerCheckpoints.getOrDefault(uuid, 0);
-        Location target = null;
-        if (currentCpIndex < checkpoints.size()) {
-            target = checkpoints.get(currentCpIndex);
-        } else if (finishCenter != null) {
-            target = finishCenter;
-        } else {
-            target = finishPos1;
-        }
-        if (target != null) {
-            p.spawnParticle(Particle.HAPPY_VILLAGER, target.clone().add(0, 1.5, 0), 2, 0.2, 0.2, 0.2, 0);
-        }
-    }
-
-    private List<UUID> calculateRankings() {
-        List<UUID> rankList = new ArrayList<>(players);
-        rankList.sort((u1, u2) -> {
-            boolean f1 = finishOrder.contains(u1);
-            boolean f2 = finishOrder.contains(u2);
-            if (f1 != f2) return f1 ? -1 : 1;
-            if (f1) return Integer.compare(finishOrder.indexOf(u1), finishOrder.indexOf(u2));
-
-            int l1 = playerLaps.getOrDefault(u1, 1), l2 = playerLaps.getOrDefault(u2, 1);
-            if (l1 != l2) return Integer.compare(l2, l1);
-
-            int c1 = playerCheckpoints.getOrDefault(u1, 0), c2 = playerCheckpoints.getOrDefault(u2, 0);
-            if (c1 != c2) return Integer.compare(c2, c1);
-
-            double d1 = getDistanceToTarget(u1, c1);
-            double d2 = getDistanceToTarget(u2, c2);
-            return Double.compare(d1, d2);
-        });
-        return rankList;
-    }
-
-    private double getDistanceToTarget(UUID uuid, int cpIndex) {
-        Player p = Bukkit.getPlayer(uuid);
-        if (p == null) return Double.MAX_VALUE;
-        Location target = (cpIndex < checkpoints.size()) ? checkpoints.get(cpIndex) : finishCenter;
-        if (target == null) target = finishPos1;
-        if (target == null || !p.getWorld().equals(target.getWorld())) return Double.MAX_VALUE;
-        return p.getLocation().distanceSquared(target);
-    }
+    // --- OTHER HELPERS ---
 
     private void createCage(Location spawn) {
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) for (int y = 0; y <= 2; y++) {
@@ -600,7 +655,6 @@ public class RaceArena {
     }
 
     private void syncGhostModeForPlayer(Player p, Boat b) {
-        // Add this boat/player to everyone's ghost team
         for (UUID otherUUID : players) {
             Player otherP = Bukkit.getPlayer(otherUUID);
             if (otherP != null) {
@@ -611,7 +665,6 @@ public class RaceArena {
                 }
             }
         }
-        // Visibility refresh
         for (UUID otherUUID : players) {
             if (!otherUUID.equals(p.getUniqueId())) {
                 Player otherP = Bukkit.getPlayer(otherUUID);
@@ -689,5 +742,20 @@ public class RaceArena {
                 }
             }
         }.runTaskAsynchronously(plugin);
+    }
+
+    private void highlightNextTarget(Player p, UUID uuid) {
+        int currentCpIndex = playerCheckpoints.getOrDefault(uuid, 0);
+        Location target = null;
+        if (currentCpIndex < checkpoints.size()) {
+            target = checkpoints.get(currentCpIndex);
+        } else if (finishCenter != null) {
+            target = finishCenter;
+        } else {
+            target = finishPos1;
+        }
+        if (target != null) {
+            p.spawnParticle(Particle.HAPPY_VILLAGER, target.clone().add(0, 1.5, 0), 2, 0.2, 0.2, 0.2, 0);
+        }
     }
 }

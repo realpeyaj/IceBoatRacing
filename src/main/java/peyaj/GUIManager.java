@@ -3,7 +3,7 @@ package peyaj;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer; // FIXED: Added Import
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -18,7 +18,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.NamespacedKey;
 
 import java.util.Arrays;
-import java.util.List; // FIXED: Added missing List import
+import java.util.List;
 
 public class GUIManager implements Listener {
 
@@ -68,7 +68,7 @@ public class GUIManager implements Listener {
     }
 
     public void openArenaEditor(Player p, RaceArena arena) {
-        Inventory inv = Bukkit.createInventory(null, 45, Component.text("Editing: " + arena.getName(), NamedTextColor.BLUE));
+        Inventory inv = Bukkit.createInventory(null, 54, Component.text("Editing: " + arena.getName(), NamedTextColor.BLUE));
 
         // 1. Visualizer Toggle
         boolean isVis = plugin.activeVisualizers.containsKey(p.getUniqueId()) && plugin.activeVisualizers.get(p.getUniqueId()).equals(arena.getName());
@@ -105,7 +105,10 @@ public class GUIManager implements Listener {
         inv.setItem(31, createItem(Material.BEACON, "&aTeleport to Start", ""));
         inv.setItem(32, createItem(Material.TNT, "&c&lDelete Arena", "&7Shift-Click to confirm"));
 
-        inv.setItem(40, createItem(Material.ARROW, "&cBack to Selector", ""));
+        // 6. Set Leaderboard (New)
+        inv.setItem(22, createItem(Material.ARMOR_STAND, "&d&lSet Leaderboard", "&7Sets hologram at your feet"));
+
+        inv.setItem(49, createItem(Material.ARROW, "&cBack to Selector", ""));
 
         fillGlass(inv);
         p.openInventory(inv);
@@ -202,9 +205,15 @@ public class GUIManager implements Listener {
             }
             else if (clicked.getType() == Material.BEACON) {
                 if (!arena.getSpawns().isEmpty()) {
-                    p.teleport(arena.getSpawns().getFirst()); // Use getFirst() since it's a List
+                    p.teleport(arena.getSpawns().getFirst());
                     p.sendMessage(Component.text("Teleported to Start.", NamedTextColor.GREEN));
                 } else p.sendMessage(Component.text("Spawns not set.", NamedTextColor.RED));
+            }
+            else if (clicked.getType() == Material.ARMOR_STAND) {
+                arena.setLeaderboardLocation(p.getLocation().add(0, 1.5, 0));
+                plugin.saveArenas();
+                p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_USE, 1f, 1f);
+                p.sendMessage(Component.text("Leaderboard Hologram updated to your location!", NamedTextColor.LIGHT_PURPLE));
             }
             else if (clicked.getType() == Material.TNT) {
                 if (e.isShiftClick()) {
@@ -225,17 +234,14 @@ public class GUIManager implements Listener {
     private ItemStack createItem(Material mat, String name, String... lore) {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
-        // Sets display name using Adventure
         meta.displayName(LegacyComponentSerializer.legacyAmpersand().deserialize(name).decoration(TextDecoration.ITALIC, false));
-
         if (lore.length > 0) {
-            // FIXED: Map Adventure Components to standard Strings using LegacyComponentSerializer
             List<String> loreStrings = Arrays.stream(lore)
                     .map(s -> LegacyComponentSerializer.legacyAmpersand().deserialize(s).decoration(TextDecoration.ITALIC, false))
-                    .map(LegacyComponentSerializer.legacySection()::serialize) // Convert Component to String
+                    .map(LegacyComponentSerializer.legacySection()::serialize)
                     .toList();
 
-            meta.setLore(loreStrings); // Apply the List<String>
+            meta.setLore(loreStrings);
         }
         item.setItemMeta(meta);
         return item;
