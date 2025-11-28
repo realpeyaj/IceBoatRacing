@@ -14,6 +14,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerQuitEvent; // Added Import
 import org.bukkit.event.vehicle.VehicleEntityCollisionEvent;
 import org.bukkit.event.vehicle.VehicleExitEvent;
 import org.bukkit.inventory.ItemStack;
@@ -24,6 +25,21 @@ public class RaceListener implements Listener {
 
     public RaceListener(IceBoatRacing plugin) {
         this.plugin = plugin;
+    }
+
+    // FIX 3: Handle Disconnects
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player p = event.getPlayer();
+        if (plugin.isRacer(p.getUniqueId())) {
+            RaceArena arena = plugin.getPlayerArena(p.getUniqueId());
+            if (arena != null) {
+                // Remove them properly so the race logic knows they are gone
+                arena.removePlayer(p);
+                // Also remove from global map immediately
+                plugin.removePlayerFromArenaMap(p.getUniqueId());
+            }
+        }
     }
 
     @EventHandler
@@ -79,10 +95,8 @@ public class RaceListener implements Listener {
         RaceArena arena = plugin.getArena(arenaName);
         if (arena == null) return;
 
-        // FIXED: Explicitly reference the public Enum in Main Class
         IceBoatRacing.EditMode mode = plugin.editorMode.getOrDefault(p.getUniqueId(), IceBoatRacing.EditMode.SPAWN);
 
-        // Cycle Mode
         if (p.isSneaking() && (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK)) {
             IceBoatRacing.EditMode next = mode.next();
             plugin.editorMode.put(p.getUniqueId(), next);
@@ -93,7 +107,6 @@ public class RaceListener implements Listener {
 
         if (blockLoc == null) return;
 
-        // Add Point
         if (action == Action.RIGHT_CLICK_BLOCK) {
             Location loc = blockLoc.clone().add(0.5, 1, 0.5);
             loc.setYaw(p.getLocation().getYaw());
@@ -125,12 +138,15 @@ public class RaceListener implements Listener {
                     arena.setMainLobby(loc);
                     p.sendMessage(Component.text("Main Lobby Set.", NamedTextColor.YELLOW));
                 }
+                case LEADERBOARD -> {
+                    arena.setLeaderboardLocation(loc.add(0, 1.5, 0));
+                    p.sendMessage(Component.text("Leaderboard Location Set.", NamedTextColor.LIGHT_PURPLE));
+                }
             }
             plugin.saveArenas();
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2f);
         }
 
-        // Remove Point
         if (action == Action.LEFT_CLICK_BLOCK) {
             boolean removed = false;
             switch (mode) {

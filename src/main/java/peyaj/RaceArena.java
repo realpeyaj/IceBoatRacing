@@ -1,15 +1,16 @@
 package peyaj;
 
-import eu.decentsoftware.holograms.api.DHAPI;
-import eu.decentsoftware.holograms.api.holograms.Hologram;
+import io.papermc.paper.scoreboard.numbers.NumberFormat;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
 import org.bukkit.entity.Boat;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.*;
@@ -64,7 +65,7 @@ public class RaceArena {
 
     // Leaderboard Data
     public final Map<UUID, Long> bestTimes = new HashMap<>();
-    // Note: We don't store the Entity anymore, DHAPI handles it by name
+    private TextDisplay hologramEntity;
 
     private BukkitTask autoStartTask = null;
     private int startCountdown = -1;
@@ -95,7 +96,7 @@ public class RaceArena {
     public Location getLeaderboardLocation() { return leaderboardLocation; }
     public void setLeaderboardLocation(Location loc) {
         this.leaderboardLocation = loc;
-        updateLeaderboardHologram(); // Refresh instantly
+        updateLeaderboardHologram();
     }
 
     public void addSpawn(Location loc) { spawns.add(loc); }
@@ -124,34 +125,29 @@ public class RaceArena {
 
     public void recalculateFinishBox() {
         if (finishPos1 != null && finishPos2 != null && finishPos1.getWorld().equals(finishPos2.getWorld())) {
-            finishBox = BoundingBox.of(finishPos1, finishPos2);
+            // Create box and expand height significantly to catch jumps
+            finishBox = BoundingBox.of(finishPos1, finishPos2).expand(0, 10.0, 0);
             finishCenter = finishBox.getCenter().toLocation(finishPos1.getWorld());
         }
     }
 
-    // --- DECENT HOLOGRAMS INTEGRATION ---
+    // --- HOLOGRAMS ---
     public void updateLeaderboardHologram() {
         if (leaderboardLocation == null) return;
+        if (hologramEntity != null && !hologramEntity.isDead()) hologramEntity.remove();
 
-        String holoName = "race_lb_" + name;
-        Hologram holo = DHAPI.getHologram(holoName);
-
-        // Create if not exists
-        if (holo == null) {
-            holo = DHAPI.createHologram(holoName, leaderboardLocation);
-        } else {
-            // Move to current set location (in case it was changed with wand)
-            DHAPI.moveHologram(holo, leaderboardLocation);
+        for (Entity e : leaderboardLocation.getWorld().getNearbyEntities(leaderboardLocation, 2, 2, 2)) {
+            if (e instanceof TextDisplay td && e.getScoreboardTags().contains("iceboat_holo_" + name)) {
+                e.remove();
+            }
         }
 
-        // Prepare Lines
-        List<String> lines = new ArrayList<>();
-        lines.add("&b&l❄ " + name.toUpperCase() + " LEADERBOARD ❄");
-        lines.add("&7------------------------");
-
-        // Sort Data
         List<Map.Entry<UUID, Long>> sorted = new ArrayList<>(bestTimes.entrySet());
         sorted.sort(Map.Entry.comparingByValue());
+
+        StringBuilder text = new StringBuilder();
+        text.append("§b§l❄ ").append(name.toUpperCase()).append(" LEADERBOARD ❄\n");
+        text.append("§7------------------------\n");
 
         int limit = Math.min(sorted.size(), 10);
         for (int i = 0; i < limit; i++) {
@@ -160,15 +156,18 @@ public class RaceArena {
             OfflinePlayer op = Bukkit.getOfflinePlayer(uuid);
             String pName = (op.getName() != null) ? op.getName() : "Unknown";
 
-            String color = (i == 0) ? "&e" : (i == 1) ? "&f" : (i == 2) ? "&6" : "&7";
-            lines.add(color + (i + 1) + ". &f" + pName + " &7- &b" + Utils.formatTime(time));
+            String color = (i == 0) ? "§e" : (i == 1) ? "§f" : (i == 2) ? "§6" : "§7";
+            text.append(color).append(i + 1).append(". §f").append(pName)
+                    .append(" §7- §b").append(Utils.formatTime(time)).append("\n");
         }
 
-        if (limit == 0) lines.add("&7No records yet!");
-        lines.add("&7------------------------");
+        if (limit == 0) text.append("§7No records yet!\n");
+        text.append("§7------------------------");
 
-        // Update Lines
-        DHAPI.setHologramLines(holo, lines);
+        hologramEntity = (TextDisplay) leaderboardLocation.getWorld().spawnEntity(leaderboardLocation, EntityType.TEXT_DISPLAY);
+        hologramEntity.text(LegacyComponentSerializer.legacyAmpersand().deserialize(text.toString()));
+        hologramEntity.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
+        hologramEntity.addScoreboardTag("iceboat_holo_" + name);
     }
 
     // --- PLAYER MANAGEMENT ---
@@ -196,6 +195,8 @@ public class RaceArena {
 
     public void removePlayer(Player p) {
         players.remove(p.getUniqueId());
+
+        // Cleanup if in race
         if (playerBoats.containsKey(p.getUniqueId())) {
             Boat b = playerBoats.remove(p.getUniqueId());
             if (b != null) b.remove();
@@ -204,9 +205,33 @@ public class RaceArena {
         stopMusic(p);
         p.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
 
-        // Cancel auto start if players drop below min
-        checkAutoStart();
+        if (state == RaceState.LOBBY) {
+            checkAutoStart();
+        } else if (state == RaceState.ACTIVE) {
+            // FIX 3: Check if race should end because someone left
+            checkFinishCondition();
+        }
+
         updateLobbyScoreboard();
+    }
+
+    // FIX 3: Separated logic to check if race is over
+    public void checkFinishCondition() {
+        if (state != RaceState.ACTIVE) return;
+
+        // If everyone remaining has finished OR no one is left
+        boolean allFinished = true;
+        for (UUID uuid : players) {
+            if (!finishOrder.contains(uuid)) {
+                allFinished = false;
+                break;
+            }
+        }
+
+        if (players.isEmpty() || allFinished) {
+            Bukkit.broadcast(Component.text("Race " + name + " finished! Closing...", NamedTextColor.GREEN));
+            new BukkitRunnable() { @Override public void run() { stopRace(); } }.runTaskLater(plugin, 100L);
+        }
     }
 
     // --- GAME LOOP ---
@@ -310,7 +335,7 @@ public class RaceArena {
             }
         }
         players.clear();
-        updateLeaderboardHologram(); // Update hologram at end
+        updateLeaderboardHologram();
     }
 
     public void tick() {
@@ -398,7 +423,7 @@ public class RaceArena {
             int lap = playerLaps.getOrDefault(uuid, 1);
             if (lap < totalLaps) {
                 playerLaps.put(uuid, lap + 1);
-                playerCheckpoints.put(uuid, 0); // Reset CPs for new lap
+                playerCheckpoints.put(uuid, 0);
                 p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1f, 2f);
                 p.sendMessage(Component.text("Lap " + (lap + 1) + "/" + totalLaps, NamedTextColor.GOLD));
             } else {
@@ -432,14 +457,17 @@ public class RaceArena {
 
         Bukkit.broadcast(Component.text(p.getName() + " finished " + name + " in " + timeStr + "!", NamedTextColor.YELLOW));
 
-        if (finishOrder.size() >= players.size()) {
-            Bukkit.broadcast(Component.text("Arena " + name + " finished! Closing...", NamedTextColor.GREEN));
-            new BukkitRunnable() { @Override public void run() { stopRace(); } }.runTaskLater(plugin, 100L);
-        }
+        checkFinishCondition(); // FIX 3: Check if this was the last player
     }
 
     public void respawnPlayer(Player p) {
+        // FIX 1: Spectator Check
         if (state != RaceState.ACTIVE) return;
+        if (!players.contains(p.getUniqueId()) || finishOrder.contains(p.getUniqueId())) {
+            p.sendMessage(Component.text("You cannot respawn right now.", NamedTextColor.RED));
+            return;
+        }
+
         int idx = playerCheckpoints.getOrDefault(p.getUniqueId(), 0);
         Location loc = (idx == 0) ? (!spawns.isEmpty() ? spawns.getFirst() : lobby) : checkpoints.get(idx - 1);
         if (loc == null) return;
@@ -622,7 +650,17 @@ public class RaceArena {
         }
     }
 
-    // --- OTHER HELPERS ---
+    private void updateCollision(Entity e) {
+        String entry = (e instanceof Player) ? e.getName() : e.getUniqueId().toString();
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) {
+                Scoreboard board = p.getScoreboard();
+                Team t = board.getTeam("ghost");
+                if (t != null && !t.hasEntry(entry)) t.addEntry(entry);
+            }
+        }
+    }
 
     private void createCage(Location spawn) {
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) for (int y = 0; y <= 2; y++) {
@@ -669,7 +707,6 @@ public class RaceArena {
         }
     }
 
-    // Music
     public void startMusic() {
         if (!plugin.musicEnabled) return;
         if (musicTask != null && !musicTask.isCancelled()) musicTask.cancel();
