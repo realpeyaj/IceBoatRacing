@@ -3,7 +3,7 @@
 ![Version](https://img.shields.io/badge/Paper-1.20+-blue?style=for-the-badge&logo=paper)
 ![Maintenance](https://img.shields.io/badge/Maintained%20by-peyaj-orange?style=for-the-badge)
 
-**A high-precision, multi-arena Ice Boat Racing plugin for Paper 1.21+.**
+*A high-precision, multi-arena Ice Boat Racing plugin for Paper **1.21+.***
 
 ---
 
