@@ -9,7 +9,7 @@
 
 ## ❄️ What does it do?
 
-**IceBoatRacing** provides a seamless competitive racing experience, bringing the mechanics of popular boat racing servers to your own. It solves common issues like collision frustration and lag-induced checkpoint skipping.
+**IceBoatRacing**, now with a full GUI system, Map Voting, Ghost Time Trials, Spectator Mode, and custom Particle Trails. Admin setup is easier than ever with the new in-game guide book.
 
 ### ✨ Key Features
 
