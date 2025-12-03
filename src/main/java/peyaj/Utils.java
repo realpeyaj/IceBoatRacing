@@ -1,12 +1,13 @@
 package peyaj;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.Boat;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
 import org.bukkit.util.BoundingBox;
@@ -98,7 +99,6 @@ public class Utils {
         drawLine(p, maxMax, new Location(p.getWorld(), minX, maxY, maxZ), color);
         drawLine(p, maxMax, new Location(p.getWorld(), maxX, minY, maxZ), color);
         drawLine(p, maxMax, new Location(p.getWorld(), maxX, maxY, minZ), color);
-        // (Add remaining edges if needed for perfect box)
     }
 
     public static void createTeam(Scoreboard b, String name, String suffix) {
@@ -117,12 +117,7 @@ public class Utils {
         }
     }
 
-    public static void spawnExhaustParticles(Player p, Boat boat) {
-        if (boat != null && !boat.isDead() && p.getVehicle() == boat) {
-            Vector dir = boat.getLocation().getDirection().multiply(-1);
-            p.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, boat.getLocation().add(dir.multiply(0.9)).add(0, 0.4, 0), 1, 0, 0, 0, 0);
-        }
-    }
+    // --- RESTORED: Formatting & Math ---
 
     public static String formatTime(long millis) {
         long min = (millis / 1000) / 60;
@@ -145,5 +140,34 @@ public class Utils {
         double t1 = (-b - disc) / (2*a);
         double t2 = (-b + disc) / (2*a);
         return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1);
+    }
+
+    // --- UPDATED: TRAIL LOGIC WITH DELAY ---
+    public static void spawnTrailParticles(Player p, Boat boat, IceBoatRacing.TrailType trail) {
+        if (boat == null || boat.isDead() || p.getVehicle() != boat) return;
+        if (trail == null || trail == IceBoatRacing.TrailType.NONE) return;
+
+        // Calculate location NOW
+        Vector dir = boat.getLocation().getDirection().multiply(-1); // Behind boat
+        Location trailLoc = boat.getLocation().add(dir.multiply(1.0)).add(0, 0.4, 0);
+
+        // Spawn LATER (2 ticks / 100ms) to sync with client interpolation
+        IceBoatRacing plugin = JavaPlugin.getPlugin(IceBoatRacing.class);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!p.isOnline()) return;
+
+            if (trail == IceBoatRacing.TrailType.RAINBOW) {
+                int r = ThreadLocalRandom.current().nextInt(255);
+                int g = ThreadLocalRandom.current().nextInt(255);
+                int b = ThreadLocalRandom.current().nextInt(255);
+                trailLoc.getWorld().spawnParticle(Particle.DUST, trailLoc, 2, 0.1, 0.1, 0.1, 0, new Particle.DustOptions(Color.fromRGB(r, g, b), 1.0f));
+            }
+            else if (trail == IceBoatRacing.TrailType.NOTES) {
+                trailLoc.getWorld().spawnParticle(Particle.NOTE, trailLoc, 1, 0.2, 0.2, 0.2, ThreadLocalRandom.current().nextDouble());
+            }
+            else {
+                trailLoc.getWorld().spawnParticle(trail.particle, trailLoc, 2, 0.1, 0.1, 0.1, 0.02);
+            }
+        }, 2L);
     }
 }

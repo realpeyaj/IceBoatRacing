@@ -1,0 +1,28 @@
+prefix: "&b&l[IceBoat] &r"
+no-permission: "&cNo permission."
+only-players: "&cOnly players can use this command."
+reload-success: "&aConfiguration and messages reloaded."
+
+# Arena Messages
+arena-joined: "&aJoined arena &f{arena}"
+arena-spectating: "&bYou are now spectating &f{arena}"
+arena-left: "&eLeft the race."
+spectator-left: "&eStopped spectating."
+race-already-active: "&cCannot start Time Trial while race is active."
+race-starting: "&eRace starting in &f{time}s"
+race-started: "&a&lGO!"
+race-ended: "&eRace ended."
+
+# Gameplay
+checkpoint-reach: "" # Leave empty to disable message (Sound still plays)
+lap-message: "&6Lap {lap}/{total}"
+wrong-way: "&c&lWRONG WAY!"
+respawn-success: "&aRespawned at last checkpoint!"
+stuck-tip: "&e&lTIP: &fStuck? Type &a/checkpoint &fto respawn!"
+
+# Results
+finished-title: "&6&lFINISHED!"
+finished-subtitle: "&eTime: {time}"
+finish-broadcast: "&f{player} &efinished &f{arena} &ein &b{time}&e!"
+new-pb: "&bNew Personal Best: {time}"
+new-server-record: "&6&lNEW SERVER RECORD! &eGhost saved."

@@ -1,14 +1,23 @@
 name: IceBoatRacing
-version: 1.0.4
+version: 2.0
 main: peyaj.IceBoatRacing
-api-version: 1.21
+api-version: 1.20
 authors: [peyaj]
-description: Multi-arena Ice Boat Racing plugin with lap support.
-depend: [DecentHolograms]
+description: Multi-arena Ice Boat Racing plugin with GUI support.
+depend: [DecentHolograms, ProtocolLib]
 commands:
   race:
     description: Main race command
     usage: /race <args>
+    permission: race.use
+  iceboat:
+    description: Opens the main racing menu
+    usage: /iceboat
+    permission: race.use
+  checkpoint:
+    description: Respawn at your last checkpoint
+    usage: /checkpoint
+    aliases: [cp, stuck]
     permission: race.use
 permissions:
   race.admin:

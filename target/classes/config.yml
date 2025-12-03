@@ -12,7 +12,7 @@ music:
   sound-name: "minecraft:coconutmallmariokartwiiostfourone" # or any music you want
   # How long is the song in seconds? The plugin will re-play it after this time.
   loop-duration-seconds: 180
-  volume: 10000.0
+  volume: 1000.0
   pitch: 1.0
 
 arenas:

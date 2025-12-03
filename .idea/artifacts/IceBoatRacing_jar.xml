@@ -1,5 +1,5 @@
 <component name="ArtifactManager">
-  <artifact type="jar" name="pjICEBOAT:jar">
+  <artifact type="jar" name="IceBoatRacing:jar">
     <output-path>$PROJECT_DIR$/../PluginsFinal</output-path>
     <root id="archive" name="pjICEBOAT.jar">
       <element id="module-output" name="IceBoatRacing" />
