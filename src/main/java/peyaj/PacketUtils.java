@@ -31,8 +31,6 @@ public class PacketUtils {
                 .write(1, loc.getY())
                 .write(2, loc.getZ());
 
-        // Pitch/Yaw are bytes in some versions, integers/floats in others depending on wrapper.
-        // ProtocolLib handles this mostly, but standard is (byte) (angle * 256 / 360)
         packet.getBytes()
                 .write(0, (byte) (loc.getPitch() * 256.0F / 360.0F))
                 .write(1, (byte) (loc.getYaw() * 256.0F / 360.0F));
@@ -46,7 +44,6 @@ public class PacketUtils {
         return entityId;
     }
 
-    // Move the fake boat (Teleport is safest for now)
     public static void moveFakeBoat(Player observer, int entityId, Location loc) {
         PacketContainer packet = protocolManager.createPacket(PacketType.Play.Server.ENTITY_TELEPORT);
         packet.getIntegers().write(0, entityId);
@@ -66,7 +63,6 @@ public class PacketUtils {
         }
     }
 
-    // Destroy the fake boat
     public static void destroyFakeEntity(Player observer, int entityId) {
         PacketContainer packet = protocolManager.createPacket(PacketType.Play.Server.ENTITY_DESTROY);
         packet.getIntLists().write(0, java.util.Collections.singletonList(entityId));
