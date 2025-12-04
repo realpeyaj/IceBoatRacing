@@ -117,7 +117,6 @@ public class Utils {
         }
     }
 
-    // --- RESTORED: Formatting & Math ---
 
     public static String formatTime(long millis) {
         long min = (millis / 1000) / 60;
@@ -142,12 +141,10 @@ public class Utils {
         return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1);
     }
 
-    // --- UPDATED: TRAIL LOGIC WITH DELAY ---
     public static void spawnTrailParticles(Player p, Boat boat, IceBoatRacing.TrailType trail) {
         if (boat == null || boat.isDead() || p.getVehicle() != boat) return;
         if (trail == null || trail == IceBoatRacing.TrailType.NONE) return;
 
-        // Calculate location NOW
         Vector dir = boat.getLocation().getDirection().multiply(-1); // Behind boat
         Location trailLoc = boat.getLocation().add(dir.multiply(1.0)).add(0, 0.4, 0);
 
