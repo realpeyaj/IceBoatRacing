@@ -41,7 +41,6 @@ public class RaceListener implements Listener {
         // If player is in a race, prevent moving hotbar items (Compass/Reset)
         if (event.getWhoClicked() instanceof Player p && plugin.isRacer(p.getUniqueId())) {
             // Simple check: prevent any movement in inventory while racing to keep items in place
-            // Or more specific: check for the items
             ItemStack item = event.getCurrentItem();
             if (item != null && item.hasItemMeta()) {
                 String name = PlainTextComponentSerializer.plainText().serialize(item.getItemMeta().displayName());
@@ -52,7 +51,7 @@ public class RaceListener implements Listener {
         }
     }
 
-    // --- CHAT: Arena Creation ---
+    // --- Arena Creation ---
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) {
         Player p = event.getPlayer();
@@ -79,11 +78,9 @@ public class RaceListener implements Listener {
         plugin.saveArenas();
 
         p.sendMessage(Component.text("Arena '" + newArena.getName() + "' created!", NamedTextColor.GREEN));
-        // Switch back to main thread for GUI
         plugin.getServer().getScheduler().runTask(plugin, () -> plugin.guiManager.openRaceTypeSelector(p, newArena.getName()));
     }
 
-    // --- PHYSICS: Auto-Climb ---
     @EventHandler
     public void onBoatMove(VehicleMoveEvent event) {
         if (!(event.getVehicle() instanceof Boat boat) || !(boat.getPassengers().getFirst() instanceof Player p)) return;
@@ -91,14 +88,12 @@ public class RaceListener implements Listener {
 
         if (boat.getVelocity().length() < 0.1) return;
 
-        // Check block in front
         Block front = boat.getLocation().add(boat.getLocation().getDirection()).getBlock();
         if (!front.getType().isAir() && !front.isPassable()) {
-            boat.setVelocity(boat.getVelocity().setY(0.5)); // Small hop up
+            boat.setVelocity(boat.getVelocity().setY(0.5));
         }
     }
 
-    // --- PHYSICS: Boat Jump/Stacking ---
     @EventHandler
     public void onBoatCollision(VehicleEntityCollisionEvent event) {
         if (!(event.getVehicle() instanceof Boat boat) || !(boat.getPassengers().getFirst() instanceof Player p)) return;
@@ -109,7 +104,6 @@ public class RaceListener implements Listener {
         event.setCollisionCancelled(true);
         event.setCancelled(true);
 
-        // If hitting another boat, jump over it
         if (event.getEntity() instanceof Boat && System.currentTimeMillis() - jumpCooldowns.getOrDefault(p.getUniqueId(), 0L) > 500) {
             if (boat.getVelocity().length() > 0.2) {
                 boat.setVelocity(boat.getVelocity().setY(0.6));
@@ -119,7 +113,6 @@ public class RaceListener implements Listener {
         }
     }
 
-    // --- GAMEPLAY: Prevent Exit ---
     @EventHandler
     public void onVehicleExit(VehicleExitEvent event) {
         if (event.getExited() instanceof Player p && plugin.isRacer(p.getUniqueId())) {
@@ -160,7 +153,6 @@ public class RaceListener implements Listener {
             event.setCancelled(true);
             plugin.guiManager.openMainMenu(p);
         } else if (item.getType() == Material.RED_DYE && name.contains("Reset Run")) {
-            // NEW: Reset Logic
             event.setCancelled(true);
             RaceArena arena = plugin.getPlayerArena(p.getUniqueId());
             if (arena != null && arena.isTimeTrial()) { // Verify it's a time trial
@@ -219,7 +211,6 @@ public class RaceListener implements Listener {
         }
     }
 
-    // Helper to send message + sound
     private void actionMsg(Player p, String msg) {
         p.sendMessage(Component.text(msg, NamedTextColor.GREEN));
         p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2f);
