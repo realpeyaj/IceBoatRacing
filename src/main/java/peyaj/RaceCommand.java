@@ -41,8 +41,8 @@ public class RaceCommand implements CommandExecutor {
         String sub = args[0].toLowerCase();
 
         switch (sub) {
-            case "start" -> handleStart(player, args); // Restored
-            case "stop" -> handleStop(player, args);   // Restored
+            case "start" -> handleStart(player, args);
+            case "stop" -> handleStop(player, args);
             case "vote" -> {
                 if (plugin.isVoting) plugin.guiManager.openVoteMenu(player);
                 else player.sendMessage(Component.text("Voting is not active.", NamedTextColor.RED));
@@ -104,7 +104,7 @@ public class RaceCommand implements CommandExecutor {
         }
     }
 
-    // --- NEW: START / STOP HANDLERS ---
+    // --- START / STOP HANDLERS ---
 
     private void handleStart(Player player, String[] args) {
         if (!player.hasPermission("race.admin")) {
