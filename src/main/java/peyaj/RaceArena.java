@@ -463,7 +463,6 @@ public class RaceArena {
         updateLeaderboardHologram();
     }
 
-    // NEW: Store Fake Entity IDs for ghosts (Player -> EntityID)
     private final Map<UUID, Integer> ghostEntityIds = new HashMap<>();
 
     public void tick() {
@@ -471,30 +470,24 @@ public class RaceArena {
         if (state == RaceState.ACTIVE) {
             tickCounter++;
 
-            // --- GHOST PLAYBACK (Using Packets) ---
+            // GHOST PLAYBACK (Using Packets)
             if (isTimeTrialMode && bestGhost != null && ghostPlaybackTick < bestGhost.points.size()) {
                 Location ghostLoc = bestGhost.points.get(ghostPlaybackTick);
                 if (ghostLoc != null && ghostLoc.getWorld() != null) {
-                    // Particles
                     ghostLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, ghostLoc.clone().add(0, 0.5, 0), 1, 0, 0, 0, 0);
-
-                    // Packet Boat
                     for (UUID uuid : players) {
                         Player p = Bukkit.getPlayer(uuid);
                         if (p != null) {
                             if (!ghostEntityIds.containsKey(uuid)) {
-                                // Spawn new fake entity
                                 int id = PacketUtils.spawnFakeBoat(p, ghostLoc);
                                 ghostEntityIds.put(uuid, id);
                             } else {
-                                // Move existing
                                 PacketUtils.moveFakeBoat(p, ghostEntityIds.get(uuid), ghostLoc);
                             }
                         }
                     }
                 }
             } else if (ghostPlaybackTick >= (bestGhost != null ? bestGhost.points.size() : 0)) {
-                // End of ghost recording - Despawn
                 for (UUID uuid : ghostEntityIds.keySet()) {
                     Player p = Bukkit.getPlayer(uuid);
                     if (p != null) PacketUtils.destroyFakeEntity(p, ghostEntityIds.get(uuid));
@@ -508,8 +501,6 @@ public class RaceArena {
             for (UUID uuid : players) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p == null || !p.isOnline()) continue;
-
-                // Removed: Real Boat Team Logic (since we use Fake Entities now, no collision logic needed for them)
 
                 if (!finishOrder.contains(uuid) && playerBoats.containsKey(uuid)) {
                     Location currentLoc = p.getLocation();
@@ -818,7 +809,6 @@ public class RaceArena {
         if (state != RaceState.LOBBY) return;
         if (players.size() >= minPlayers) {
             if (autoStartTask == null) {
-                // Changed to use lobbyCountdown instead of startCountdown
                 lobbyCountdown = autoStartDelay;
                 autoStartTask = new BukkitRunnable() {
                     @Override
@@ -848,8 +838,7 @@ public class RaceArena {
         if (autoStartTask != null) {
             autoStartTask.cancel();
             autoStartTask = null;
-            // Reset logic removed as per previous working logic, but ensuring it cleans up.
-            lobbyCountdown = -1; // Reset value
+            lobbyCountdown = -1;
             updateLobbyScoreboard();
         }
     }
@@ -868,7 +857,6 @@ public class RaceArena {
         Objective o = b.registerNewObjective("Lobby", Criteria.DUMMY, Component.text("§b§lICE BOAT"));
         o.setDisplaySlot(DisplaySlot.SIDEBAR);
         Team statusTeam = b.registerNewTeam("status");
-        // Changed to use lobbyCountdown variable
         String statusTxt = (autoStartTask != null && lobbyCountdown >= 0) ? "§eStart: " + lobbyCountdown + "s" : "§fWaiting...";
         statusTeam.addEntry("§7");
         statusTeam.suffix(Component.text(statusTxt));
