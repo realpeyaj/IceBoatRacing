@@ -5,6 +5,10 @@
 
 *A high-precision, multi-arena Ice Boat Racing plugin for Paper **1.21+.***
 
+<p align="center">
+  <img src="https://i.imgur.com/z8kkRxi.gif" alt="Preview">
+</p>
+
 ---
 
 ## ❄️ What does it do?
